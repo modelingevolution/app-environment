@@ -13,6 +13,9 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # Trusted Publishing: lets NuGet/login mint a 1-hour key
     steps:
     - uses: actions/checkout@v4
 
@@ -44,9 +47,16 @@ jobs:
     - name: Pack
       run: dotnet pack src/ModelingEvolution.AppEnvironment/ModelingEvolution.AppEnvironment.csproj --configuration Release --no-build --output ./nupkg
 
+    - name: NuGet login (OIDC -> temporary API key)
+      # nuget.org Trusted Publishing: no long-lived key. The policy on nuget.org names this repo and this workflow
+      # file; `user` is the nuget.org username of the POLICY CREATOR (not the package owner / org).
+      id: nuget_login
+      uses: NuGet/login@v1
+      with:
+        user: rafal.maciag
     - name: Push to NuGet
       run: |
         dotnet nuget push ./nupkg/*.nupkg \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --api-key ${{ steps.nuget_login.outputs.NUGET_API_KEY }} \
           --source https://api.nuget.org/v3/index.json \
           --skip-duplicate
